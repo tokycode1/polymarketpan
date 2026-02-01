@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npm --version:*)",
+      "Bash(node:*)",
+      "Bash(echo:*)",
+      "Bash(env:*)",
+      "Bash(export PATH=\"/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:$HOME/.nvm/versions/node/*/bin:$PATH\")",
+      "Bash(source ~/.zshrc)",
+      "Bash(source ~/.bashrc)"
+    ]
+  }
+}
