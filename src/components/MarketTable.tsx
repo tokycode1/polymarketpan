@@ -7,6 +7,7 @@ interface MarketTableProps {
   page: number;
   pageSize: number;
   onSelectMarket: (market: PolymarketMarket) => void;
+  onOpenOrderBook: (market: PolymarketMarket) => void;
 }
 
 function formatNumber(n: number | undefined | null): string {
@@ -62,6 +63,7 @@ export default function MarketTable({
   page,
   pageSize,
   onSelectMarket,
+  onOpenOrderBook,
 }: MarketTableProps) {
   if (markets.length === 0) {
     return (
@@ -125,6 +127,9 @@ export default function MarketTable({
               </th>
               <th className="text-right text-xs text-poly-muted uppercase tracking-wider px-4 py-3">
                 Total Vol
+              </th>
+              <th className="text-center text-xs text-poly-muted uppercase tracking-wider px-4 py-3 w-16">
+                Book
               </th>
               <th className="text-center text-xs text-poly-muted uppercase tracking-wider px-4 py-3 w-16">
                 Link
@@ -194,6 +199,20 @@ export default function MarketTable({
                     {formatNumber(m.volumeNum ?? parseFloat(m.volume))}
                   </td>
                   <td className="px-4 py-3 text-center">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenOrderBook(m);
+                      }}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-poly-dark hover:bg-poly-yellow/20 text-poly-muted hover:text-poly-yellow transition-colors"
+                      title="View Order Book"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-center">
                     <a
                       href={marketUrl}
                       target="_blank"
@@ -255,27 +274,41 @@ export default function MarketTable({
                     Ends {formatDate(m.endDate)}
                   </p>
                 </div>
-                <a
-                  href={marketUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex-shrink-0 text-poly-muted hover:text-poly-accent"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenOrderBook(m);
+                    }}
+                    className="text-poly-muted hover:text-poly-yellow"
+                    title="View Order Book"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                    />
-                  </svg>
-                </a>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </button>
+                  <a
+                    href={marketUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-poly-muted hover:text-poly-accent"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                      />
+                    </svg>
+                  </a>
+                </div>
               </div>
               <div className="ml-6">
                 <PriceBar

@@ -49,9 +49,23 @@ export interface PolymarketMarket {
   oneMonthPriceChange: number;
   spread: number;
   groupItemTitle: string;
+  clobTokenIds: string;
   events: PolymarketEvent[];
   negRisk: boolean;
   negRiskMarketID: string;
+}
+
+export interface OrderBookEntry {
+  price: string;
+  size: string;
+}
+
+export interface OrderBookData {
+  market: string;
+  asset_id: string;
+  bids: OrderBookEntry[];
+  asks: OrderBookEntry[];
+  last_trade_price: string;
 }
 
 export interface FilterState {

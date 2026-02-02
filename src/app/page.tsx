@@ -8,6 +8,7 @@ import {
 import FilterPanel from "@/components/FilterPanel";
 import MarketTable from "@/components/MarketTable";
 import MarketDetailModal from "@/components/MarketDetailModal";
+import OrderBookModal from "@/components/OrderBookModal";
 import Pagination from "@/components/Pagination";
 
 const DEFAULT_FILTERS: FilterState = {
@@ -38,6 +39,8 @@ export default function HomePage() {
     useState<PolymarketMarket | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [orderBookMarket, setOrderBookMarket] =
+    useState<PolymarketMarket | null>(null);
 
   // Debounce ref — only for API calls (numeric/date/sort changes)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -278,6 +281,7 @@ export default function HomePage() {
           page={safePage}
           pageSize={PAGE_SIZE}
           onSelectMarket={setSelectedMarket}
+          onOpenOrderBook={setOrderBookMarket}
         />
 
         <Pagination
@@ -289,10 +293,20 @@ export default function HomePage() {
         />
       </div>
 
-      {/* Modal */}
+      {/* Detail Modal */}
       <MarketDetailModal
         market={selectedMarket}
         onClose={() => setSelectedMarket(null)}
+        onOpenOrderBook={(m) => {
+          setSelectedMarket(null);
+          setOrderBookMarket(m);
+        }}
+      />
+
+      {/* Order Book Modal */}
+      <OrderBookModal
+        market={orderBookMarket}
+        onClose={() => setOrderBookMarket(null)}
       />
     </main>
   );

@@ -5,6 +5,7 @@ import { PolymarketMarket } from "@/types/market";
 interface MarketDetailModalProps {
   market: PolymarketMarket | null;
   onClose: () => void;
+  onOpenOrderBook: (market: PolymarketMarket) => void;
 }
 
 function formatNumber(n: number | undefined | null): string {
@@ -35,6 +36,7 @@ function formatPercent(p: number | undefined | null): string {
 export default function MarketDetailModal({
   market,
   onClose,
+  onOpenOrderBook,
 }: MarketDetailModalProps) {
   if (!market) return null;
 
@@ -212,15 +214,26 @@ export default function MarketDetailModal({
             </div>
           )}
 
-          {/* Action */}
-          <a
-            href={polymarketUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block w-full text-center bg-poly-accent hover:bg-blue-500 text-white font-semibold py-3 rounded-xl transition-colors"
-          >
-            Trade on Polymarket
-          </a>
+          {/* Actions */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => onOpenOrderBook(market)}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-poly-yellow/30 text-poly-yellow hover:bg-poly-yellow/10 font-semibold transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Order Book
+            </button>
+            <a
+              href={polymarketUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 text-center bg-poly-accent hover:bg-blue-500 text-white font-semibold py-3 rounded-xl transition-colors"
+            >
+              Trade on Polymarket
+            </a>
+          </div>
         </div>
       </div>
     </div>
