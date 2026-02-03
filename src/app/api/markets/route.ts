@@ -71,7 +71,13 @@ export async function GET(request: NextRequest) {
       if (m.closed) return false;
 
       const price = safeNum(m.lastTradePrice);
-      if (price < minPrice || price > maxPrice) return false;
+      // Since YES + NO = 1 in Polymarket, we filter symmetrically
+      // If filtering for [minPrice, maxPrice], also include [(1 - maxPrice), (1 - minPrice)]
+      const inOriginalRange = price >= minPrice && price <= maxPrice;
+      const complementaryMin = 1 - maxPrice;
+      const complementaryMax = 1 - minPrice;
+      const inComplementaryRange = price >= complementaryMin && price <= complementaryMax;
+      if (!inOriginalRange && !inComplementaryRange) return false;
 
       const liq = safeNum(m.liquidityNum) || safeNum(m.liquidity);
       if (liq < minLiquidity || liq > maxLiquidity) return false;
