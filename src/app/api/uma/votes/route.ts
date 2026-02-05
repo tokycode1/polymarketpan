@@ -241,7 +241,7 @@ export async function GET(request: NextRequest) {
             description: resolved.description,
             marketId: resolved.marketId || "",
             resData: resolved.resData || { p1: 0, p2: 1, p3: 0.5 },
-            outcomes: resolved.outcomes,
+            outcomes: resolved.outcomes || undefined,
             resolvedAncillaryDataHex: resolved.resolvedAncillaryDataHex || undefined,
           };
 
