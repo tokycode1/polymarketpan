@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import Link from "next/link";
+import useSWR from "swr";
 import {
   PolymarketMarket,
   FilterState,
@@ -10,6 +12,9 @@ import MarketTable from "@/components/MarketTable";
 import MarketDetailModal from "@/components/MarketDetailModal";
 import OrderBookModal from "@/components/OrderBookModal";
 import Pagination from "@/components/Pagination";
+
+// SWR fetcher function
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 const DEFAULT_FILTERS: FilterState = {
   minPrice: 0.9,
@@ -31,24 +36,16 @@ const PAGE_SIZE = 20;
 
 export default function HomePage() {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  // allMarkets = data returned by API (filtered by numeric/date + sorted)
-  const [allMarkets, setAllMarkets] = useState<PolymarketMarket[]>([]);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [selectedMarket, setSelectedMarket] =
     useState<PolymarketMarket | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [orderBookMarket, setOrderBookMarket] =
     useState<PolymarketMarket | null>(null);
 
-  // Debounce ref — only for API calls (numeric/date/sort changes)
+  // Debounce state for API params (to avoid too many SWR key changes)
+  const [debouncedApiParams, setDebouncedApiParams] = useState<string>("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-  // Track which filter keys actually need an API refetch
-  const prevApiFiltersRef = useRef<string>("");
-  // Always hold latest filters for auto-refresh to read
-  const filtersRef = useRef(filters);
-  filtersRef.current = filters;
 
   /** Build the query params that go to the API (everything EXCEPT search) */
   const buildApiParams = useCallback((f: FilterState) => {
@@ -69,24 +66,41 @@ export default function HomePage() {
     return params.toString();
   }, []);
 
-  /** Fetch filtered+sorted data from API */
-  const fetchMarkets = useCallback(
-    async (f: FilterState) => {
-      setLoading(true);
-      try {
-        const qs = buildApiParams(f);
-        const res = await fetch(`/api/markets?${qs}`);
-        const json = await res.json();
-        setAllMarkets(json.data ?? []);
-        setLastUpdated(new Date());
-      } catch (err) {
-        console.error("Failed to fetch markets:", err);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [buildApiParams]
+  // Initialize debounced params on mount
+  const initialApiParams = useMemo(() => buildApiParams(DEFAULT_FILTERS), [buildApiParams]);
+  
+  // Debounce filter changes for API calls
+  const currentApiParams = useMemo(() => buildApiParams(filters), [buildApiParams, filters]);
+  
+  // Update debounced params with delay
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedApiParams(currentApiParams);
+    }, 400);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [currentApiParams]);
+
+  // Use initial params for first render, then debounced params
+  const apiParams = debouncedApiParams || initialApiParams;
+
+  // SWR for data fetching with caching
+  const { data, isLoading, mutate } = useSWR(
+    `/api/markets?${apiParams}`,
+    fetcher,
+    {
+      revalidateOnFocus: false,      // Don't refetch on window focus
+      revalidateOnReconnect: false,  // Don't refetch on reconnect
+      dedupingInterval: 60000,       // Dedupe requests within 1 minute
+      refreshInterval: autoRefresh ? 5 * 60 * 1000 : 0, // Auto-refresh every 5 min if enabled
+    }
   );
+
+  const allMarkets: PolymarketMarket[] = data?.data ?? [];
+  const loading = isLoading;
+  const lastUpdated = data ? new Date() : null;
 
   /**
    * Client-side fuzzy search on the already-filtered results.
@@ -118,42 +132,6 @@ export default function HomePage() {
     const start = (safePage - 1) * PAGE_SIZE;
     return searchedMarkets.slice(start, start + PAGE_SIZE);
   }, [searchedMarkets, safePage]);
-
-  /**
-   * When filters change:
-   * - search change → no API call, instant client filter
-   * - anything else → debounced API call
-   */
-  useEffect(() => {
-    const apiKey = buildApiParams(filters);
-    if (apiKey === prevApiFiltersRef.current) return; // only search changed
-    prevApiFiltersRef.current = apiKey;
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      fetchMarkets(filters);
-    }, 400);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [filters, fetchMarkets, buildApiParams]);
-
-  // Initial fetch
-  useEffect(() => {
-    fetchMarkets(filters);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Auto-refresh every 5 min (only when enabled)
-  // Uses filtersRef so the interval always reads the latest filter values
-  // without restarting the timer on every filter change.
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(() => {
-      fetchMarkets(filtersRef.current);
-    }, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [autoRefresh, fetchMarkets]);
 
   // Reset page to 1 when search changes
   useEffect(() => {
@@ -243,7 +221,7 @@ export default function HomePage() {
                 </span>
               </button>
               <button
-                onClick={() => fetchMarkets(filters)}
+                onClick={() => mutate()}
                 disabled={loading}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-poly-dark border border-poly-border text-poly-muted hover:text-poly-accent hover:border-poly-accent transition-colors text-sm disabled:opacity-50"
               >
@@ -272,6 +250,23 @@ export default function HomePage() {
           </div>
         </div>
       </header>
+
+      {/* Navigation */}
+      <div className="border-b border-poly-border bg-poly-card/50">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
+          <div className="flex items-center gap-6 overflow-x-auto">
+            <span className="py-3 text-sm text-poly-accent border-b-2 border-poly-accent whitespace-nowrap">
+              Market Scanner
+            </span>
+            <Link
+              href="/uma"
+              className="py-3 text-sm text-poly-muted hover:text-poly-text transition-colors whitespace-nowrap"
+            >
+              UMA Votes
+            </Link>
+          </div>
+        </div>
+      </div>
 
       {/* Content */}
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6">
