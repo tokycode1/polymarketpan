@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { UmaVote, VoteStatus } from "@/types/uma";
@@ -25,33 +25,52 @@ export default function UmaVotesPage() {
   const [statusFilter, setStatusFilter] = useState<FilterStatus>("all");
   const [includeAll, setIncludeAll] = useState(false);
 
-  // Build API URL based on includeAll
-  const apiUrl = `/api/uma/votes${includeAll ? "?includeAll=true" : ""}`;
+  // List API URL: when statusFilter is set, pass it so API returns only that status (server-side filter)
+  const listParams = new URLSearchParams();
+  if (includeAll) listParams.set("includeAll", "true");
+  if (statusFilter !== "all") listParams.set("status", statusFilter);
+  const listUrl = `/api/uma/votes${listParams.toString() ? `?${listParams.toString()}` : ""}`;
 
-  // SWR for data fetching with caching
-  const { data, error, isLoading, mutate } = useSWR(apiUrl, fetcher, {
-    revalidateOnFocus: false,      // Don't refetch on window focus
-    revalidateOnReconnect: false,  // Don't refetch on reconnect  
-    dedupingInterval: 60000,       // Dedupe requests within 1 minute
-    refreshInterval: autoRefresh ? 2 * 60 * 1000 : 0, // Auto-refresh every 2 min if enabled
-  });
+  // When includeAll is on and a status tab is selected, we need full list for tab counts; fetch it separately
+  const countUrl =
+    includeAll && statusFilter !== "all"
+      ? "/api/uma/votes?includeAll=true"
+      : null;
+
+  const swrOpts = {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    dedupingInterval: 60000,
+    refreshInterval: autoRefresh ? 2 * 60 * 1000 : 0,
+  };
+
+  const { data, error, isLoading, mutate } = useSWR(listUrl, fetcher, swrOpts);
+  const { data: countData } = useSWR(countUrl, fetcher, swrOpts);
 
   const votes: UmaVote[] = data?.data ?? [];
+  const votesForCount: UmaVote[] = countUrl ? (countData?.data ?? []) : votes;
   const loading = isLoading;
   const lastUpdated = data ? new Date() : null;
 
-  // Filter votes by status
-  const filteredVotes = statusFilter === "all"
-    ? votes
-    : votes.filter((v) => v.status === statusFilter);
+  // List is already filtered by API when statusFilter !== "all"
+  const filteredVotes = useMemo(
+    () =>
+      statusFilter === "all"
+        ? votes
+        : votes.filter((v) => v.status === statusFilter),
+    [votes, statusFilter]
+  );
 
-  // Count by status
-  const statusCounts = {
-    all: votes.length,
-    revealing: votes.filter((v) => v.status === "revealing").length,
-    committing: votes.filter((v) => v.status === "committing").length,
-    upcoming: votes.filter((v) => v.status === "upcoming").length,
-  };
+  // Counts from full list when we have it (for correct tab numbers)
+  const statusCounts = useMemo(
+    () => ({
+      all: votesForCount.length,
+      revealing: votesForCount.filter((v) => v.status === "revealing").length,
+      committing: votesForCount.filter((v) => v.status === "committing").length,
+      upcoming: votesForCount.filter((v) => v.status === "upcoming").length,
+    }),
+    [votesForCount]
+  );
 
   return (
     <main className="min-h-screen bg-poly-dark">
