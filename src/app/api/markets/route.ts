@@ -2,6 +2,75 @@ import { NextRequest, NextResponse } from "next/server";
 import { PolymarketMarket } from "@/types/market";
 
 const GAMMA_API = "https://gamma-api.polymarket.com/markets";
+const GAMMA_EVENTS_API = "https://gamma-api.polymarket.com/events";
+
+const CATEGORIES = [
+  "climate-science", "crypto", "culture", "economy", "finance",
+  "mentions", "other", "politics", "sports", "tech",
+];
+
+const eventCategoryCache = new Map<string, { category: string; ts: number }>();
+const CACHE_TTL = 15 * 60 * 1000;
+
+async function fetchEventCategory(eventId: string): Promise<string> {
+  const cached = eventCategoryCache.get(eventId);
+  if (cached && Date.now() - cached.ts < CACHE_TTL) {
+    return cached.category;
+  }
+  try {
+    const res = await fetch(`${GAMMA_EVENTS_API}/${eventId}/tags`, {
+      method: "GET",
+    });
+    if (!res.ok) {
+      eventCategoryCache.set(eventId, { category: "unknown", ts: Date.now() });
+      return "unknown";
+    }
+    const tags: { slug: string }[] = await res.json();
+    let category = "unknown";
+    for (const tag of tags) {
+      if (CATEGORIES.includes(tag.slug.toLowerCase())) {
+        category = tag.slug.toLowerCase();
+        break;
+      }
+    }
+    eventCategoryCache.set(eventId, { category, ts: Date.now() });
+    return category;
+  } catch {
+    eventCategoryCache.set(eventId, { category: "unknown", ts: Date.now() });
+    return "unknown";
+  }
+}
+
+async function assignCategories(markets: PolymarketMarket[]): Promise<void> {
+  const eventIdToMarkets = new Map<string, PolymarketMarket[]>();
+  for (const m of markets) {
+    if (m.events && m.events.length > 0) {
+      const eventId = m.events[0].id;
+      if (!eventIdToMarkets.has(eventId)) {
+        eventIdToMarkets.set(eventId, []);
+      }
+      eventIdToMarkets.get(eventId)!.push(m);
+    } else {
+      m.category = "unknown";
+    }
+  }
+
+  const eventIds = Array.from(eventIdToMarkets.keys());
+  const BATCH_SIZE = 50;
+
+  for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
+    const batch = eventIds.slice(i, i + BATCH_SIZE);
+    const categories = await Promise.all(
+      batch.map((id) => fetchEventCategory(id))
+    );
+    batch.forEach((id, idx) => {
+      const ms = eventIdToMarkets.get(id) || [];
+      for (const m of ms) {
+        m.category = categories[idx];
+      }
+    });
+  }
+}
 
 function safeNum(val: unknown): number {
   const n = Number(val);
@@ -149,7 +218,8 @@ export async function GET(request: NextRequest) {
       return bVal - aVal;
     });
 
-    // Return ALL filtered+sorted results; client handles search + pagination
+    await assignCategories(filtered);
+
     return NextResponse.json({
       data: filtered,
       total: filtered.length,

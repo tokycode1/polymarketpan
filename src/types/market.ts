@@ -53,6 +53,7 @@ export interface PolymarketMarket {
   events: PolymarketEvent[];
   negRisk: boolean;
   negRiskMarketID: string;
+  category?: string;
 }
 
 export interface OrderBookEntry {

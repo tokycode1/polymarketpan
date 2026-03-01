@@ -13,6 +13,21 @@ import MarketDetailModal from "@/components/MarketDetailModal";
 import OrderBookModal from "@/components/OrderBookModal";
 import Pagination from "@/components/Pagination";
 
+const CATEGORY_LABELS: Record<string, string> = {
+  all: "All",
+  politics: "Politics",
+  crypto: "Crypto",
+  finance: "Finance",
+  economy: "Economy",
+  sports: "Sports",
+  tech: "Tech",
+  culture: "Culture",
+  "climate-science": "Climate & Science",
+  mentions: "Mentions",
+  other: "Other",
+  unknown: "Unknown",
+};
+
 // SWR fetcher function
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -42,6 +57,7 @@ export default function HomePage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [orderBookMarket, setOrderBookMarket] =
     useState<PolymarketMarket | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   // Debounce state for API params (to avoid too many SWR key changes)
   const [debouncedApiParams, setDebouncedApiParams] = useState<string>("");
@@ -124,14 +140,30 @@ export default function HomePage() {
     });
   }, [allMarkets, filters.search]);
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: searchedMarkets.length };
+    for (const m of searchedMarkets) {
+      const cat = m.category || "unknown";
+      counts[cat] = (counts[cat] || 0) + 1;
+    }
+    return counts;
+  }, [searchedMarkets]);
+
+  const categoryFilteredMarkets = useMemo(() => {
+    if (selectedCategory === "all") return searchedMarkets;
+    return searchedMarkets.filter(
+      (m) => (m.category || "unknown") === selectedCategory
+    );
+  }, [searchedMarkets, selectedCategory]);
+
   /** Paginated slice of searched results */
-  const totalFiltered = searchedMarkets.length;
+  const totalFiltered = categoryFilteredMarkets.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pagedMarkets = useMemo(() => {
     const start = (safePage - 1) * PAGE_SIZE;
-    return searchedMarkets.slice(start, start + PAGE_SIZE);
-  }, [searchedMarkets, safePage]);
+    return categoryFilteredMarkets.slice(start, start + PAGE_SIZE);
+  }, [categoryFilteredMarkets, safePage]);
 
   // Reset page to 1 when search changes
   useEffect(() => {
@@ -188,6 +220,19 @@ export default function HomePage() {
                   Polymarket Scanner & Analytics
                 </p>
               </div>
+              {/* Nav links */}
+              <nav className="hidden md:flex items-center gap-1 ml-6">
+                <span className="px-3 py-1.5 rounded-lg text-xs font-medium bg-poly-accent/15 text-poly-accent border border-poly-accent/30">
+                  Scanner
+                </span>
+                <Link
+                  href="/uma"
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-poly-muted hover:text-poly-text hover:bg-poly-dark transition-colors flex items-center gap-1.5"
+                >
+                  <span>⚔️</span>
+                  UMA Votes
+                </Link>
+              </nav>
             </div>
             <div className="flex items-center gap-3">
               {lastUpdated && (
@@ -276,6 +321,38 @@ export default function HomePage() {
           onReset={handleReset}
           loading={loading}
         />
+
+        {/* Category Navigation */}
+        <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-poly-border">
+          {Object.entries(CATEGORY_LABELS).map(([slug, label]) => {
+            const count = categoryCounts[slug] || 0;
+            if (slug !== "all" && count === 0) return null;
+            const isActive = selectedCategory === slug;
+            return (
+              <button
+                key={slug}
+                onClick={() => {
+                  setSelectedCategory(slug);
+                  setPage(1);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                  isActive
+                    ? "bg-poly-accent/15 text-poly-accent border border-poly-accent/30"
+                    : "bg-poly-card border border-poly-border text-poly-muted hover:text-poly-text hover:border-poly-text/30"
+                }`}
+              >
+                {label}
+                <span
+                  className={`text-[10px] ${
+                    isActive ? "text-poly-accent/70" : "text-poly-muted/60"
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
         <MarketTable
           markets={pagedMarkets}
