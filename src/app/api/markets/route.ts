@@ -4,12 +4,21 @@ import { PolymarketMarket } from "@/types/market";
 const GAMMA_API = "https://gamma-api.polymarket.com/markets";
 const GAMMA_EVENTS_API = "https://gamma-api.polymarket.com/events";
 
-const CATEGORIES = [
-  "climate-science", "crypto", "culture", "economy", "finance",
-  "mentions", "other", "politics", "sports", "tech",
-];
+const CATEGORY_PRIORITY: Record<string, number> = {
+  "other": 0,
+  "mentions": 1,
+  "culture": 2,
+  "climate-science": 3,
+  "tech": 4,
+  "sports": 5,
+  "economy": 6,
+  "finance": 7,
+  "crypto": 8,
+  "politics": 9,
+};
 
 const eventCategoryCache = new Map<string, { category: string; ts: number }>();
+const inflightCategoryRequests = new Map<string, Promise<string>>();
 const CACHE_TTL = 15 * 60 * 1000;
 
 async function fetchEventCategory(eventId: string): Promise<string> {
@@ -17,28 +26,43 @@ async function fetchEventCategory(eventId: string): Promise<string> {
   if (cached && Date.now() - cached.ts < CACHE_TTL) {
     return cached.category;
   }
-  try {
-    const res = await fetch(`${GAMMA_EVENTS_API}/${eventId}/tags`, {
-      method: "GET",
-    });
-    if (!res.ok) {
+
+  const inflight = inflightCategoryRequests.get(eventId);
+  if (inflight) return inflight;
+
+  const promise = (async (): Promise<string> => {
+    try {
+      const res = await fetch(`${GAMMA_EVENTS_API}/${eventId}/tags`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        eventCategoryCache.set(eventId, { category: "unknown", ts: Date.now() });
+        return "unknown";
+      }
+      const tags: { slug: string }[] = await res.json();
+      let bestCategory = "unknown";
+      let bestPriority = -1;
+      for (const tag of tags) {
+        const slug = tag.slug.toLowerCase();
+        const priority = CATEGORY_PRIORITY[slug];
+        if (priority !== undefined && priority > bestPriority) {
+          bestCategory = slug;
+          bestPriority = priority;
+        }
+      }
+      eventCategoryCache.set(eventId, { category: bestCategory, ts: Date.now() });
+      return bestCategory;
+    } catch {
       eventCategoryCache.set(eventId, { category: "unknown", ts: Date.now() });
       return "unknown";
+    } finally {
+      inflightCategoryRequests.delete(eventId);
     }
-    const tags: { slug: string }[] = await res.json();
-    let category = "unknown";
-    for (const tag of tags) {
-      if (CATEGORIES.includes(tag.slug.toLowerCase())) {
-        category = tag.slug.toLowerCase();
-        break;
-      }
-    }
-    eventCategoryCache.set(eventId, { category, ts: Date.now() });
-    return category;
-  } catch {
-    eventCategoryCache.set(eventId, { category: "unknown", ts: Date.now() });
-    return "unknown";
-  }
+  })();
+
+  inflightCategoryRequests.set(eventId, promise);
+  return promise;
 }
 
 async function assignCategories(markets: PolymarketMarket[]): Promise<void> {
@@ -77,37 +101,64 @@ function safeNum(val: unknown): number {
   return isFinite(n) ? n : 0;
 }
 
+let marketDataCache: { data: PolymarketMarket[]; ts: number } | null = null;
+let inflightMarketFetch: Promise<PolymarketMarket[]> | null = null;
+const MARKET_CACHE_TTL = 60_000;
+
 async function fetchAllMarkets(): Promise<PolymarketMarket[]> {
-  const allMarkets: PolymarketMarket[] = [];
-  let offset = 0;
-  const limit = 100;
-  let hasMore = true;
-
-  while (hasMore) {
-    const url = `${GAMMA_API}?closed=false&active=true&limit=${limit}&offset=${offset}`;
-    const res = await fetch(url, {
-      method: "GET",
-      next: { revalidate: 60 },
-    });
-
-    if (!res.ok) {
-      throw new Error(`API request failed: ${res.status}`);
-    }
-
-    const markets: PolymarketMarket[] = await res.json();
-
-    if (markets.length === 0) {
-      hasMore = false;
-    } else {
-      allMarkets.push(...markets);
-      offset += limit;
-      if (markets.length < limit) {
-        hasMore = false;
-      }
-    }
+  if (marketDataCache && Date.now() - marketDataCache.ts < MARKET_CACHE_TTL) {
+    return JSON.parse(JSON.stringify(marketDataCache.data));
   }
 
-  return allMarkets;
+  if (inflightMarketFetch) {
+    const result = await inflightMarketFetch;
+    return JSON.parse(JSON.stringify(result));
+  }
+
+  inflightMarketFetch = (async () => {
+    const allMarkets: PolymarketMarket[] = [];
+    let offset = 0;
+    const limit = 100;
+    let hasMore = true;
+
+    while (hasMore) {
+      const url = `${GAMMA_API}?closed=false&active=true&limit=${limit}&offset=${offset}`;
+      const res = await fetch(url, { cache: "no-store" });
+
+      if (!res.ok) {
+        throw new Error(`API request failed: ${res.status}`);
+      }
+
+      const markets: PolymarketMarket[] = await res.json();
+
+      if (markets.length === 0) {
+        hasMore = false;
+      } else {
+        allMarkets.push(...markets);
+        offset += limit;
+        if (markets.length < limit) {
+          hasMore = false;
+        }
+      }
+    }
+
+    const seen = new Set<string>();
+    const dedupedMarkets = allMarkets.filter((m) => {
+      if (seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
+
+    marketDataCache = { data: dedupedMarkets, ts: Date.now() };
+    return dedupedMarkets;
+  })();
+
+  try {
+    const result = await inflightMarketFetch;
+    return JSON.parse(JSON.stringify(result));
+  } finally {
+    inflightMarketFetch = null;
+  }
 }
 
 export async function GET(request: NextRequest) {

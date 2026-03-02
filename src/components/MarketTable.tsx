@@ -146,7 +146,7 @@ export default function MarketTable({
 
               return (
                 <tr
-                  key={m.id}
+                  key={`${m.id}-${idx}`}
                   className="border-b border-poly-border/50 hover:bg-poly-dark/50 cursor-pointer transition-colors"
                   onClick={() => onSelectMarket(m)}
                 >
@@ -253,7 +253,7 @@ export default function MarketTable({
 
           return (
             <div
-              key={m.id}
+              key={`${m.id}-${idx}`}
               className="p-4 hover:bg-poly-dark/50 cursor-pointer transition-colors"
               onClick={() => onSelectMarket(m)}
             >

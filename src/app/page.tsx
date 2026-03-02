@@ -114,7 +114,15 @@ export default function HomePage() {
     }
   );
 
-  const allMarkets: PolymarketMarket[] = data?.data ?? [];
+  const allMarkets: PolymarketMarket[] = useMemo(() => {
+    const raw: PolymarketMarket[] = data?.data ?? [];
+    const seen = new Set<string>();
+    return raw.filter((m) => {
+      if (seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
+  }, [data]);
   const loading = isLoading;
   const lastUpdated = data ? new Date() : null;
 
