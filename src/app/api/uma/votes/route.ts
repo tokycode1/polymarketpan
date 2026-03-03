@@ -203,27 +203,11 @@ export async function GET(request: NextRequest) {
       (pr) => pr.identifier.id === "YES_OR_NO_QUERY"
     );
 
-    // Filter based on groups (only revealing votes by default)
-    let filteredRequests = includeAll
-      ? polymarketRequests
-      : polymarketRequests.filter(
-          (pr) => pr.latestRound.groups && pr.latestRound.groups.length > 0
-        );
-
-    // Apply status filter if provided
-    if (statusFilter) {
-      filteredRequests = filteredRequests.filter((pr) => {
-        const status = getVoteStatus(pr.latestRound);
-        return status === statusFilter;
-      });
-    }
-
-    // Process each request to get full data
-    const votes: UmaVote[] = await Promise.all(
-      filteredRequests.map(async (pr) => {
+    // Process ALL requests first to get full data (before any filtering)
+    const allVotes: UmaVote[] = await Promise.all(
+      polymarketRequests.map(async (pr) => {
         const status = getVoteStatus(pr.latestRound);
         
-        // Create base vote object
         const vote: UmaVote = {
           identifier: pr.identifier.id,
           time: pr.time,
@@ -233,7 +217,6 @@ export async function GET(request: NextRequest) {
           status,
         };
 
-        // Resolve ancillary data to get market_id
         const resolved = await resolveAncillaryData(pr.time, pr.ancillaryData);
         if (resolved) {
           vote.resolvedData = {
@@ -245,7 +228,6 @@ export async function GET(request: NextRequest) {
             resolvedAncillaryDataHex: resolved.resolvedAncillaryDataHex || undefined,
           };
 
-          // Fetch market data if we have a market_id
           if (resolved.marketId) {
             const market = await fetchMarketById(resolved.marketId);
             if (market) {
@@ -259,27 +241,35 @@ export async function GET(request: NextRequest) {
     );
 
     // Sort by time descending (newest first)
-    votes.sort((a, b) => parseInt(b.time) - parseInt(a.time));
+    allVotes.sort((a, b) => parseInt(b.time) - parseInt(a.time));
 
     // Deduplicate by market ID - keep only the latest (first after sort) for each market
     const seenMarketIds = new Set<string>();
-    const deduplicatedVotes = votes.filter((vote) => {
+    const deduplicatedVotes = allVotes.filter((vote) => {
       const marketId = vote.resolvedData?.marketId;
-      if (!marketId) {
-        // Keep votes without market ID (shouldn't happen but be safe)
-        return true;
-      }
-      if (seenMarketIds.has(marketId)) {
-        // Skip duplicate - we already have a newer one
-        return false;
-      }
+      if (!marketId) return true;
+      if (seenMarketIds.has(marketId)) return false;
       seenMarketIds.add(marketId);
       return true;
     });
 
+    // Filter based on groups (only revealing votes by default)
+    let filteredVotes = includeAll
+      ? deduplicatedVotes
+      : deduplicatedVotes.filter(
+          (vote) => vote.latestRound.groups && vote.latestRound.groups.length > 0
+        );
+
+    // Apply status filter if provided
+    if (statusFilter) {
+      filteredVotes = filteredVotes.filter(
+        (vote) => vote.status === statusFilter
+      );
+    }
+
     return NextResponse.json({
-      data: deduplicatedVotes,
-      total: deduplicatedVotes.length,
+      data: filteredVotes,
+      total: filteredVotes.length,
       timestamp: Date.now(),
     });
   } catch (error) {
