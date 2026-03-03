@@ -16,6 +16,9 @@ import Pagination from "@/components/Pagination";
 const CATEGORY_LABELS: Record<string, string> = {
   all: "All",
   politics: "Politics",
+  iran: "Iran",
+  geopolitics: "Geopolitics",
+  "global-elections": "Global Elections",
   crypto: "Crypto",
   finance: "Finance",
   economy: "Economy",
@@ -103,7 +106,7 @@ export default function HomePage() {
   const apiParams = debouncedApiParams || initialApiParams;
 
   // SWR for data fetching with caching
-  const { data, isLoading, mutate } = useSWR(
+  const { data, isLoading, isValidating, mutate } = useSWR(
     `/api/markets?${apiParams}`,
     fetcher,
     {
@@ -123,7 +126,7 @@ export default function HomePage() {
       return true;
     });
   }, [data]);
-  const loading = isLoading;
+  const loading = isLoading || isValidating;
   const lastUpdated = data ? new Date() : null;
 
   /**

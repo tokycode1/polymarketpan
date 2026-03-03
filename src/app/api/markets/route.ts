@@ -14,7 +14,10 @@ const CATEGORY_PRIORITY: Record<string, number> = {
   "economy": 6,
   "finance": 7,
   "crypto": 8,
-  "politics": 9,
+  "geopolitics": 9,
+  "global-elections": 10,
+  "politics": 11,
+  "iran": 12,
 };
 
 const eventCategoryCache = new Map<string, { category: string; ts: number }>();
