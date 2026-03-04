@@ -3,7 +3,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 
-const WS_URL = "ws://43.135.166.73:8889";
+const WS_RAW_URL = process.env.NEXT_PUBLIC_WS_URL || "43.135.166.73:8889";
+
+function getWsUrl(): string {
+  if (WS_RAW_URL.startsWith("ws://") || WS_RAW_URL.startsWith("wss://")) {
+    return WS_RAW_URL;
+  }
+  const isSecure =
+    typeof window !== "undefined" && window.location.protocol === "https:";
+  return `${isSecure ? "wss" : "ws"}://${WS_RAW_URL}`;
+}
 const RECONNECT_DELAY_INIT = 1000;
 const RECONNECT_DELAY_MAX = 60000;
 
@@ -85,7 +94,7 @@ export default function TradesPage() {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     setStatus("connecting");
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(getWsUrl());
     wsRef.current = ws;
 
     ws.onopen = () => {
