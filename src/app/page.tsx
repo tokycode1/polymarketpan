@@ -243,6 +243,13 @@ export default function HomePage() {
                   <span>⚔️</span>
                   UMA Votes
                 </Link>
+                <Link
+                  href="/trades"
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-poly-muted hover:text-poly-text hover:bg-poly-dark transition-colors flex items-center gap-1.5"
+                >
+                  <span>📡</span>
+                  Insider Trades
+                </Link>
               </nav>
             </div>
             <div className="flex items-center gap-3">
@@ -319,6 +326,12 @@ export default function HomePage() {
               className="py-3 text-sm text-poly-muted hover:text-poly-text transition-colors whitespace-nowrap"
             >
               UMA Votes
+            </Link>
+            <Link
+              href="/trades"
+              className="py-3 text-sm text-poly-muted hover:text-poly-text transition-colors whitespace-nowrap"
+            >
+              Insider Trades
             </Link>
           </div>
         </div>

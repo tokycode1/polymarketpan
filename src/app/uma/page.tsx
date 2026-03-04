@@ -186,6 +186,12 @@ export default function UmaVotesPage() {
             <span className="py-3 text-sm text-poly-accent border-b-2 border-poly-accent whitespace-nowrap">
               UMA Votes
             </span>
+            <Link
+              href="/trades"
+              className="py-3 text-sm text-poly-muted hover:text-poly-text transition-colors whitespace-nowrap"
+            >
+              Insider Trades
+            </Link>
           </div>
         </div>
       </div>
