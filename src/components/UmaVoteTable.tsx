@@ -22,6 +22,13 @@ function formatPercent(p: number | undefined | null): string {
   return `${(v * 100).toFixed(1)}%`;
 }
 
+function formatTokenAmount(n: number): string {
+  if (!isFinite(n)) return "0";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toFixed(2);
+}
+
 function formatTimestamp(timestamp: string): string {
   const date = new Date(parseInt(timestamp) * 1000);
   if (isNaN(date.getTime())) return "N/A";
@@ -184,6 +191,38 @@ export default function UmaVoteTable({ votes, onSelectVote }: UmaVoteTableProps)
                     </span>
                   </div>
                 )}
+
+                {/* Agreement Progress */}
+                {vote.latestRound.minAgreementRequirement && stats.leadingOption && (() => {
+                  const leadingAmount = parseFloat(stats.leadingOption.totalVoteAmount);
+                  const minAgreement = parseFloat(vote.latestRound.minAgreementRequirement!);
+                  const progressPct = minAgreement > 0
+                    ? Math.min((leadingAmount / minAgreement) * 100, 100)
+                    : 0;
+                  const isReached = leadingAmount >= minAgreement;
+
+                  return (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="text-poly-muted uppercase tracking-wider">Agreement Progress</span>
+                        <span className={isReached ? "text-poly-green font-medium" : "text-poly-muted"}>
+                          {formatTokenAmount(leadingAmount)}
+                          <span className="text-poly-border mx-1">/</span>
+                          {formatTokenAmount(minAgreement)}
+                          <span className={`ml-1.5 font-semibold ${isReached ? "text-poly-green" : "text-poly-text"}`}>
+                            ({progressPct.toFixed(1)}%)
+                          </span>
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-poly-dark rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${isReached ? "bg-poly-green" : progressPct >= 50 ? "bg-poly-accent" : "bg-poly-yellow"}`}
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Market Info */}
