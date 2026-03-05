@@ -82,27 +82,6 @@ function isToday(dateStr: string): boolean {
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected";
 
-const STORAGE_KEY = "insider_trades_today";
-
-function loadPersistedTrades(): ParsedTrade[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: ParsedTrade[] = JSON.parse(raw);
-    return parsed.filter((t) => isToday(t.date) && t.accountAddress !== "");
-  } catch {
-    return [];
-  }
-}
-
-function persistTrades(trades: ParsedTrade[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(trades));
-  } catch {
-    // ignore storage errors
-  }
-}
-
 export default function TradesPage() {
   const [trades, setTrades] = useState<ParsedTrade[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
@@ -111,21 +90,17 @@ export default function TradesPage() {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
   const delayRef = useRef(RECONNECT_DELAY_INIT);
 
-  // Load persisted trades on mount
+  // On mount: fetch today's historical trades from the server-side collector
   useEffect(() => {
-    const saved = loadPersistedTrades();
-    if (saved.length > 0) {
-      seenIds.current = new Set(saved.map((t) => t.messageId));
-      setTrades(saved);
-    }
+    fetch("/api/trades")
+      .then((r) => r.json())
+      .then((data: { trades: ParsedTrade[] }) => {
+        if (!data.trades?.length) return;
+        setTrades(data.trades.filter((t) => isToday(t.date)));
+        seenIds.current = new Set(data.trades.map((t) => t.messageId));
+      })
+      .catch(() => {/* ignore */});
   }, []);
-
-  // Persist trades to localStorage whenever they change
-  useEffect(() => {
-    if (trades.length > 0) {
-      persistTrades(trades);
-    }
-  }, [trades]);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -177,7 +152,6 @@ export default function TradesPage() {
         const filtered = prev.filter((t) => isToday(t.date));
         if (filtered.length !== prev.length) {
           seenIds.current = new Set(filtered.map((t) => t.messageId));
-          persistTrades(filtered);
         }
         return filtered;
       });
