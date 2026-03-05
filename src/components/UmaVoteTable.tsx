@@ -204,7 +204,7 @@ export default function UmaVoteTable({ votes, onSelectVote }: UmaVoteTableProps)
                   return (
                     <div className="mt-3">
                       <div className="flex items-center justify-between text-xs mb-1.5">
-                        <span className="text-poly-muted uppercase tracking-wider">Agreement Progress</span>
+                        <span className="text-poly-muted uppercase tracking-wider">Consensus Progress</span>
                         <span className={isReached ? "text-poly-green font-medium" : "text-poly-muted"}>
                           {formatTokenAmount(leadingAmount)}
                           <span className="text-poly-border mx-1">/</span>
